@@ -65,15 +65,15 @@ def run_conversion(filename_in, reknr, firstdate):
     if len(firstdate) != 6:
         raise ValueError('First date should be given YYMMDD')
 
-    header_mt940 = """0000 01INGBNL2AXXXX00001
-    0000 01INGBNL2AXXXX00001
-    940 00
-    :20:INGEB
-    :25:{reknr}
-    :28C:1
-    :60F:C{firstdate}EUR0
-    """.format(reknr=reknr, firstdate=firstdate).replace('\n', '\r\n')
-
+    header_mt940 = (
+        '0000 01INGBNL2AXXXX00001\r\n'
+        '0000 01INGBNL2AXXXX00001\r\n'
+        '940 00\r\n'
+        ':20:INGEB\r\n'
+        ':25:{reknr}\r\n'
+        ':28C:1\r\n'
+        ':60F:C{firstdate}EUR0\r\n'
+    ).format(reknr=reknr, firstdate=firstdate)
 
     # check if the quotes are OK (issue introduced by ING after ~1-1-2017)
     # avoiding these kind of lines:
@@ -94,25 +94,24 @@ def run_conversion(filename_in, reknr, firstdate):
 
     with open(filename_conv, 'r') as openfile:
         reader = csv.reader(openfile)
-        for row in reader:
-            break
+        data_all = list(reader)[1:]  # remove header
 
-        result = header_mt940
-        saldo = 0
-        for row in reader:
-            date, name, _, iban, typ, DC, amount, _, comment = row
-            cents = int(float(amount.replace(',', '.')) * 100)
-            if DC == 'Bij':
-                DC = 'C'
-                saldo += cents
-            else:
-                DC = 'D'
-                saldo -= cents
-            result += ':61:' + date[2:] + DC + amount + 'N' + typ + '\r\n'
-            if len(comment) > 0:
-                result += ':86:' + comment[:63] + '\r\n'
-            if len(comment) > 63:
-                result += ':86:' + comment[63:126] + '\r\n'
+    result = header_mt940
+    saldo = 0
+    for row in sorted(data_all, key=lambda x: x[0]):  # sort on date
+        date, name, _, iban, typ, DC, amount, _, comment = row
+        cents = int(float(amount.replace(',', '.')) * 100)
+        if DC == 'Bij':
+            DC = 'C'
+            saldo += cents
+        else:
+            DC = 'D'
+            saldo -= cents
+        result += ':61:' + date[2:] + DC + amount + 'N' + typ + '\r\n'
+        if len(comment) > 0:
+            result += ':86:' + comment[:63] + '\r\n'
+        if len(comment) > 63:
+            result += ':86:' + comment[63:126] + '\r\n'
 
     if saldo > 0:
         DC = 'C'
